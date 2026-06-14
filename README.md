@@ -5,8 +5,8 @@ A static Vite/React prototype for media-authenticity triage. Users can upload an
 The browser prototype separates deterministic verification from heuristic scoring:
 
 - Watermark/provenance checks are shown as their own status.
-- Uploaded media is sampled locally for simple color and texture signals.
-- Links are scored from available source and naming clues.
+- Uploaded media is previewed first, then sampled locally after the user clicks **Analyze media**.
+- Links are scored from available source and naming clues. Social video links, including Instagram Reels, are URL-only unless the actual media file is uploaded.
 - The result explains why it is not a 100% determination unless a supported watermark or provenance signal is verified.
 
 ## Development

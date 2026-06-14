@@ -31,6 +31,8 @@ type PixelStats = {
   compressionProxy: number;
 };
 
+type SocialPlatform = "Instagram" | "TikTok" | "YouTube" | "Vimeo" | "X/Twitter";
+
 const aiDomains = [
   "runwayml.com",
   "runway.com",
@@ -92,6 +94,7 @@ export async function analyzeFile(file: File): Promise<AnalysisResult> {
 export function analyzeLink(rawUrl: string): AnalysisResult {
   const normalizedUrl = normalizeUrl(rawUrl);
   const lowered = normalizedUrl.toLowerCase();
+  const socialPlatform = detectSocialPlatform(lowered);
   const signals: Signal[] = [];
   let score = 50;
 
@@ -131,13 +134,16 @@ export function analyzeLink(rawUrl: string): AnalysisResult {
     });
   }
 
-  if (looksLikeSocialVideo(lowered)) {
+  if (socialPlatform) {
     score -= 4;
     signals.push({
       label: "Distribution",
-      value: "Social/video platform",
+      value: socialPlatform,
       impact: "neutral",
-      detail: "Platforms can host both captured and generated content.",
+      detail:
+        socialPlatform === "Instagram"
+          ? "Instagram links are URL-only in this version; the Reel video was not downloaded or sampled."
+          : "Social platforms can host captured and generated media; this link was not downloaded or sampled.",
     });
   }
 
@@ -147,8 +153,11 @@ export function analyzeLink(rawUrl: string): AnalysisResult {
     confidence: matchedDomain || matchedTerms.length > 1 ? "Medium" : "Low",
     watermarkStatus: "Not checked",
     provenanceStatus: "Not checked",
-    summary:
-      "This link-only result is based on source and URL evidence. A production detector should fetch media server-side, inspect content credentials, and run provider watermark checks when available.",
+    summary: socialPlatform
+      ? socialPlatform === "Instagram"
+        ? "This is URL-only triage. The app did not download or inspect the media from Instagram. To inspect frames, save or download the Reel video and upload the file."
+        : `This is URL-only triage. The app did not download or inspect the media from ${socialPlatform}. Upload the actual media file for visual analysis.`
+      : "This link-only result is based on source and URL evidence. A production detector should fetch media server-side, inspect content credentials, and run provider watermark checks when available.",
     signals,
   };
 }
@@ -286,16 +295,13 @@ function normalizeUrl(rawUrl: string) {
   return `https://${trimmed}`;
 }
 
-function looksLikeSocialVideo(url: string) {
-  return [
-    "youtube.com",
-    "youtu.be",
-    "tiktok.com",
-    "instagram.com",
-    "vimeo.com",
-    "x.com",
-    "twitter.com",
-  ].some((domain) => url.includes(domain));
+function detectSocialPlatform(url: string): SocialPlatform | null {
+  if (url.includes("instagram.com")) return "Instagram";
+  if (url.includes("tiktok.com")) return "TikTok";
+  if (url.includes("youtube.com") || url.includes("youtu.be")) return "YouTube";
+  if (url.includes("vimeo.com")) return "Vimeo";
+  if (url.includes("x.com") || url.includes("twitter.com")) return "X/Twitter";
+  return null;
 }
 
 function sampleImage(src: string): Promise<PixelStats> {

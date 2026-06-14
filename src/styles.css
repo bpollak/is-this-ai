@@ -249,6 +249,64 @@ h2 {
   font-weight: 760;
 }
 
+.upload-action-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfa;
+}
+
+.upload-action-row p {
+  margin: 0;
+  color: #3f4d48;
+  font-weight: 680;
+  line-height: 1.4;
+}
+
+.primary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ink);
+  color: #ffffff;
+  font-weight: 760;
+}
+
+.primary-action:disabled {
+  cursor: not-allowed;
+  background: #d9ded8;
+  color: #69736d;
+}
+
+.social-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 12px 0 0;
+  padding: 11px 12px;
+  border: 1px solid rgba(188, 108, 37, 0.24);
+  border-radius: 8px;
+  background: rgba(188, 108, 37, 0.08);
+  color: #5a442c;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.social-notice svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
 .alert {
   display: flex;
   align-items: center;
@@ -535,6 +593,7 @@ h2 {
   }
 
   .url-row,
+  .upload-action-row,
   .verification-grid {
     grid-template-columns: 1fr;
   }

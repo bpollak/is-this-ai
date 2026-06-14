@@ -28,8 +28,10 @@ const acceptedMedia = "image/png,image/jpeg,image/webp,image/gif,video/mp4,video
 export function App() {
   const [mode, setMode] = useState<Mode>("upload");
   const [url, setUrl] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [analysisSource, setAnalysisSource] = useState<Mode | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -47,7 +49,17 @@ export function App() {
     return "Not settled";
   }, [result]);
 
-  async function handleFile(file: File | undefined) {
+  const uploadGuidance = useMemo(() => {
+    if (isAnalyzing && analysisSource === "upload") {
+      return "Sampling video/image signals in your browser.";
+    }
+    if (selectedFile) return "Ready to analyze this uploaded file.";
+    return "Choose an image or video, then click Analyze media.";
+  }, [analysisSource, isAnalyzing, selectedFile]);
+
+  const linkNotice = useMemo(() => getSocialLinkNotice(url), [url]);
+
+  function handleFile(file: File | undefined) {
     if (!file) return;
     setError("");
 
@@ -62,12 +74,25 @@ export function App() {
       type: file.type.startsWith("video") ? "video" as const : "image" as const,
       name: file.name,
     };
+    setSelectedFile(file);
     setPreview(nextPreview);
     setResult(null);
+    setAnalysisSource(null);
+  }
+
+  async function handleAnalyzeSelectedFile() {
+    if (!selectedFile) {
+      setError("Choose an image or video file first.");
+      return;
+    }
+
+    setError("");
+    setResult(null);
+    setAnalysisSource("upload");
     setIsAnalyzing(true);
 
     try {
-      setResult(await analyzeFile(file));
+      setResult(await analyzeFile(selectedFile));
     } catch (analysisError) {
       setError(
         analysisError instanceof Error
@@ -81,19 +106,22 @@ export function App() {
 
   function handleDrop(event: React.DragEvent<HTMLLabelElement>) {
     event.preventDefault();
-    void handleFile(event.dataTransfer.files[0]);
+    handleFile(event.dataTransfer.files[0]);
   }
 
   function handleUrlSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setPreview(null);
+    setSelectedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
 
     if (!url.trim()) {
       setError("Paste a media link first.");
       return;
     }
 
+    setAnalysisSource("link");
     setIsAnalyzing(true);
     window.setTimeout(() => {
       setResult(analyzeLink(url));
@@ -103,7 +131,9 @@ export function App() {
 
   function reset() {
     setUrl("");
+    setSelectedFile(null);
     setResult(null);
+    setAnalysisSource(null);
     setError("");
     if (preview) URL.revokeObjectURL(preview.url);
     setPreview(null);
@@ -159,7 +189,7 @@ export function App() {
                   ref={fileInputRef}
                   type="file"
                   accept={acceptedMedia}
-                  onChange={(event) => void handleFile(event.target.files?.[0])}
+                  onChange={(event) => handleFile(event.target.files?.[0])}
                 />
                 <span className="drop-icon">
                   <ImageUp size={30} aria-hidden="true" />
@@ -183,8 +213,33 @@ export function App() {
                     Analyze
                   </button>
                 </div>
+                {linkNotice ? (
+                  <p className="social-notice" aria-live="polite">
+                    <AlertTriangle size={17} aria-hidden="true" />
+                    {linkNotice}
+                  </p>
+                ) : null}
               </form>
             )}
+
+            {mode === "upload" ? (
+              <div className="upload-action-row">
+                <p aria-live="polite">{uploadGuidance}</p>
+                <button
+                  type="button"
+                  className="primary-action"
+                  onClick={() => void handleAnalyzeSelectedFile()}
+                  disabled={!selectedFile || isAnalyzing}
+                >
+                  {isAnalyzing && analysisSource === "upload" ? (
+                    <Loader2 className="spin" size={18} aria-hidden="true" />
+                  ) : (
+                    <ScanSearch size={18} aria-hidden="true" />
+                  )}
+                  {isAnalyzing && analysisSource === "upload" ? "Analyzing..." : "Analyze media"}
+                </button>
+              </div>
+            ) : null}
 
             {error ? (
               <div className="alert" role="alert">
@@ -277,11 +332,15 @@ export function App() {
               {isAnalyzing ? (
                 <>
                   <Loader2 className="spin" size={17} aria-hidden="true" />
-                  Reading available media signals.
+                  {analysisSource === "upload"
+                    ? "Sampling video/image signals in your browser."
+                    : "Reading available link and source signals."}
                 </>
               ) : (
                 result?.summary ??
-                "Upload a file or submit a link to get a transparent likelihood score."
+                (mode === "upload"
+                  ? "Choose a file, then click Analyze media to get a transparent likelihood score."
+                  : "Submit a link to get URL-only triage. Upload the actual file for visual analysis.")
               )}
             </p>
 
@@ -341,3 +400,25 @@ const placeholderSignals = [
     detail: "Links are scored from available source and naming clues.",
   },
 ];
+
+function getSocialLinkNotice(rawUrl: string) {
+  const url = rawUrl.trim().toLowerCase();
+  if (!url) return "";
+
+  if (url.includes("instagram.com")) {
+    return "Instagram links are URL-only here. To inspect frames, download or save the Reel video and upload the file.";
+  }
+
+  if (
+    url.includes("tiktok.com") ||
+    url.includes("youtube.com") ||
+    url.includes("youtu.be") ||
+    url.includes("vimeo.com") ||
+    url.includes("x.com") ||
+    url.includes("twitter.com")
+  ) {
+    return "Social video links are URL-only here. Upload the actual media file for frame-level analysis.";
+  }
+
+  return "";
+}
