@@ -19,6 +19,12 @@ export type AnalysisResult = {
   confidence: "High" | "Medium" | "Low";
   watermarkStatus: "Detected" | "Not detected" | "Not checked";
   provenanceStatus: "Verified" | "Missing" | "Not checked";
+  inspectionStatus:
+    | "Uploaded file"
+    | "Resolved media"
+    | "Representative frame"
+    | "Metadata only"
+    | "URL only";
   summary: string;
   signals: Signal[];
 };
@@ -93,6 +99,14 @@ export async function analyzeFile(file: File): Promise<AnalysisResult> {
         ? await sampleVideoFrame(objectUrl)
         : await sampleImage(objectUrl);
     return resultFromSignals(kind, file.name, file.type, file.size, stats);
+  } catch (error) {
+    return fallbackResultFromFile(
+      kind,
+      file.name,
+      file.type,
+      file.size,
+      error instanceof Error ? error.message : "The visual sample could not be read.",
+    );
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
@@ -169,11 +183,12 @@ export function analyzeLink(rawUrl: string): AnalysisResult {
     confidence: matchedDomain || matchedTerms.length > 1 ? "Medium" : "Low",
     watermarkStatus: "Not checked",
     provenanceStatus: "Not checked",
+    inspectionStatus: socialPlatform ? "Metadata only" : "URL only",
     summary: socialPlatform
       ? socialPlatform === "Instagram"
-        ? "This is URL-only triage. The app did not download or inspect the media from Instagram. To inspect frames, save or download the Reel video and upload the file."
-        : `This is URL-only triage. The app did not download or inspect the media from ${socialPlatform}. Upload the actual media file for visual analysis.`
-      : "This link-only result is based on source and URL evidence. A production detector should fetch media server-side, inspect content credentials, and run provider watermark checks when available.",
+        ? "This is metadata-only triage. The GitHub Pages version did not download or inspect the Reel video from Instagram; the Vercel backend needs a social media resolver key to sample frames from the link."
+        : `This is metadata-only triage. The GitHub Pages version did not download or inspect the media from ${socialPlatform}; the Vercel backend needs a social media resolver key to sample frames from the link.`
+      : "This link-only result is based on source and URL evidence. A backend should fetch media server-side, inspect content credentials, and run provider watermark checks when available.",
     signals,
   };
 }
@@ -189,6 +204,16 @@ function resultFromSignals(
   let score = 50;
   const loweredName = name.toLowerCase();
   const matchedTerms = aiTerms.filter((term) => loweredName.includes(term));
+
+  signals.push({
+    label: "Visual sample",
+    value: kind === "video" ? "Frame sampled" : "Pixels sampled",
+    impact: "neutral",
+    detail:
+      kind === "video"
+        ? "The browser decoded the uploaded video and sampled a frame for texture and color signals."
+        : "The browser decoded the uploaded image and sampled pixels for texture and color signals.",
+  });
 
   if (matchedTerms.length > 0) {
     score += Math.min(18, matchedTerms.length * 7);
@@ -286,8 +311,78 @@ function resultFromSignals(
         : "Low",
     watermarkStatus: "Not detected",
     provenanceStatus: "Missing",
+    inspectionStatus: "Uploaded file",
     summary:
       "No cryptographic provenance or supported watermark was verified in this browser prototype. The score is a heuristic estimate from filename, container, and sampled visual features.",
+    signals,
+  };
+}
+
+function fallbackResultFromFile(
+  kind: Exclude<MediaKind, "link">,
+  name: string,
+  mimeType: string,
+  size: number,
+  reason: string,
+): AnalysisResult {
+  const signals: Signal[] = [];
+  let score = 50;
+  const loweredName = name.toLowerCase();
+  const matchedTerms = aiTerms.filter((term) => loweredName.includes(term));
+
+  signals.push({
+    label: "Visual sample",
+    value: "Unavailable",
+    impact: "neutral",
+    detail: `${reason} The score below is a limited fallback from filename and container signals only.`,
+  });
+
+  if (matchedTerms.length > 0) {
+    score += Math.min(18, matchedTerms.length * 7);
+    signals.push({
+      label: "Filename",
+      value: matchedTerms.slice(0, 3).join(", "),
+      impact: "raises",
+      detail: "The filename includes terms frequently used in generated media exports.",
+    });
+  } else {
+    signals.push({
+      label: "Filename",
+      value: "No AI terms found",
+      impact: "neutral",
+      detail: "The filename does not provide a useful authenticity signal.",
+    });
+  }
+
+  const fileSizeMb = size / 1024 / 1024;
+  if (kind === "video" && fileSizeMb < 4) {
+    score += 5;
+    signals.push({
+      label: "Container",
+      value: `${fileSizeMb.toFixed(1)} MB ${mimeType || "video"}`,
+      impact: "raises",
+      detail: "Small exported clips are common from generators, but this is a weak signal.",
+    });
+  } else {
+    signals.push({
+      label: "Container",
+      value: `${fileSizeMb.toFixed(1)} MB ${mimeType || kind}`,
+      impact: "neutral",
+      detail: "File container details alone are not enough to establish origin.",
+    });
+  }
+
+  const clampedScore = clampScore(score);
+
+  return {
+    score: clampedScore,
+    verdict: verdictForScore(clampedScore),
+    confidence: "Low",
+    watermarkStatus: "Not checked",
+    provenanceStatus: "Not checked",
+    inspectionStatus: "Uploaded file",
+    summary:
+      "The upload was accepted, but the browser could not sample visual content from this file. The percentage is a low-confidence fallback from filename and container signals; use an H.264 MP4, WebM, PNG, JPEG, or WebP export for stronger visual analysis.",
     signals,
   };
 }

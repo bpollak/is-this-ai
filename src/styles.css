@@ -471,6 +471,12 @@ h2 {
   background: var(--signal-blue);
 }
 
+.url-row button:disabled {
+  cursor: wait;
+  background: #d9dfd3;
+  color: #69736d;
+}
+
 .upload-action-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -726,7 +732,7 @@ h2 {
 
 .verification-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 10px;
   margin-bottom: 16px;
 }

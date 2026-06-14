@@ -48,6 +48,11 @@ const secondaryNavLinks = [
   { href: "/contact", label: "Contact" },
 ];
 
+type UrlAnalysisResponse = {
+  result?: AnalysisResult;
+  message?: string;
+};
+
 export function App() {
   const [mode, setMode] = useState<Mode>("upload");
   const [url, setUrl] = useState("");
@@ -77,9 +82,12 @@ export function App() {
     if (isAnalyzing && analysisSource === "upload") {
       return "Sampling video/image signals in your browser.";
     }
+    if (result && analysisSource === "upload") {
+      return "Analysis complete. The current answer panel shows the likelihood score and evidence.";
+    }
     if (selectedFile) return "Ready to analyze this uploaded file.";
     return "Choose an image or video, then click Analyze media.";
-  }, [analysisSource, isAnalyzing, selectedFile]);
+  }, [analysisSource, isAnalyzing, result, selectedFile]);
 
   const linkNotice = useMemo(() => getSocialLinkNotice(socialPlatform), [socialPlatform]);
 
@@ -136,11 +144,12 @@ export function App() {
     handleFile(event.dataTransfer.files[0]);
   }
 
-  function handleUrlSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleUrlSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setPreview(null);
     setSelectedFile(null);
+    setResult(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
 
     if (!url.trim()) {
@@ -150,10 +159,20 @@ export function App() {
 
     setAnalysisSource("link");
     setIsAnalyzing(true);
-    window.setTimeout(() => {
+
+    try {
+      const apiResult = await analyzeUrlOnServer(url);
+      setResult(apiResult ?? analyzeLink(url));
+    } catch (analysisError) {
       setResult(analyzeLink(url));
+      setError(
+        analysisError instanceof Error
+          ? analysisError.message
+          : "The social media resolver could not inspect this link.",
+      );
+    } finally {
       setIsAnalyzing(false);
-    }, 280);
+    }
   }
 
   function reset() {
@@ -216,7 +235,7 @@ export function App() {
             <h1>Is This AI?</h1>
             <p className="hero-copy">
               A media provenance triage tool for social videos, uploaded files, and public links.
-              Upload the actual file for visual analysis; paste a social link for URL-only context.
+              Upload the actual file for in-browser analysis; paste a social link for backend resolution when available.
             </p>
           </div>
           <div className="hero-actions">
@@ -245,7 +264,10 @@ export function App() {
               </button>
               <button
                 className={mode === "link" ? "active" : ""}
-                onClick={() => setMode("link")}
+                onClick={() => {
+                  setMode("link");
+                  setError("");
+                }}
                 type="button"
                 role="tab"
                 aria-selected={mode === "link"}
@@ -266,6 +288,7 @@ export function App() {
                   <input
                     ref={fileInputRef}
                     type="file"
+                    aria-label="Choose media file"
                     accept={acceptedMedia}
                     onChange={(event) => handleFile(event.target.files?.[0])}
                   />
@@ -285,11 +308,18 @@ export function App() {
                     type="url"
                     value={url}
                     placeholder="https://..."
-                    onChange={(event) => setUrl(event.target.value)}
+                    onChange={(event) => {
+                      setUrl(event.target.value);
+                      setError("");
+                    }}
                   />
-                  <button type="submit">
-                    <ScanSearch size={18} aria-hidden="true" />
-                    Analyze
+                  <button type="submit" disabled={isAnalyzing}>
+                    {isAnalyzing && analysisSource === "link" ? (
+                      <Loader2 className="spin" size={18} aria-hidden="true" />
+                    ) : (
+                      <ScanSearch size={18} aria-hidden="true" />
+                    )}
+                    {isAnalyzing && analysisSource === "link" ? "Analyzing..." : "Analyze link"}
                   </button>
                 </div>
                 {linkNotice ? (
@@ -412,6 +442,11 @@ export function App() {
                 label="Confidence"
                 value={result?.confidence ?? "None"}
               />
+              <Metric
+                icon={<ScanSearch size={18} aria-hidden="true" />}
+                label="Inspection"
+                value={result?.inspectionStatus ?? "Waiting"}
+              />
             </div>
 
             <p className="summary">
@@ -420,7 +455,7 @@ export function App() {
                   <Loader2 className="spin" size={17} aria-hidden="true" />
                   {analysisSource === "upload"
                     ? "Sampling video/image signals in your browser."
-                    : "Reading available link and source signals."}
+                    : "Resolving the social link and sampling media when the backend can access it."}
                 </>
               ) : (
                 result?.summary ??
@@ -495,7 +530,7 @@ function SocialWorkflowPanel() {
         <Smartphone size={19} aria-hidden="true" />
         <div>
           <strong>Social video workflow</strong>
-          <p>For Reels, Shorts, TikToks, Vimeo, X, Facebook, or Threads videos, upload the saved media file for actual frame analysis.</p>
+          <p>Paste a social URL to let the Vercel backend resolve media when configured. Upload the saved video file when a platform blocks direct access.</p>
         </div>
       </div>
       <div className="platform-row" aria-label="Recognized social platforms">
@@ -512,8 +547,7 @@ function SocialLinkHint() {
     <div className="social-link-hint">
       <Smartphone size={18} aria-hidden="true" />
       <p>
-        Social links can be logged as source context, but this static version cannot download the post video.
-        Upload the saved file when you need visual analysis.
+        Social links are resolved by the backend when a media resolver key is configured. If the backend cannot access the post, upload the saved file for browser-based analysis.
       </p>
     </div>
   );
@@ -523,10 +557,35 @@ function getSocialLinkNotice(platform: SocialPlatform | null) {
   if (!platform) return "";
 
   if (platform === "Instagram") {
-    return "This app can score the Instagram URL only. It cannot inspect Reel frames from the link; save the Reel video and upload the file for media analysis.";
+    return "Instagram usually hides Reel video bytes from static websites. The backend can inspect frames only when a configured resolver returns the actual media; otherwise save the Reel and upload the file.";
   }
 
-  return `This app can score the ${platform} URL only. It cannot inspect video frames from the link; upload the saved media file for frame-level analysis.`;
+  return `${platform} links need backend resolution before frame analysis. If the backend cannot access the media, upload the saved video file for frame-level analysis.`;
+}
+
+async function analyzeUrlOnServer(url: string): Promise<AnalysisResult | null> {
+  const response = await fetch("/api/analyze-url", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ url }),
+  });
+
+  if (response.status === 404) return null;
+
+  let payload: UrlAnalysisResponse | null = null;
+  try {
+    payload = await response.json() as UrlAnalysisResponse;
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(payload?.message ?? "The backend could not inspect this social link.");
+  }
+
+  return payload?.result ?? null;
 }
 
 const supportedSocialPlatforms: SocialPlatform[] = [

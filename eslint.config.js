@@ -31,4 +31,15 @@ export default [
       ],
     },
   },
+  {
+    files: ["api/**/*.ts"],
+    languageOptions: {
+      ecmaVersion: 2023,
+      globals: {
+        ...globals.node,
+        fetch: "readonly",
+        RequestInit: "readonly",
+      },
+    },
+  },
 ];
