@@ -84,7 +84,7 @@ const aiTerms = [
 ];
 
 export async function analyzeFile(file: File): Promise<AnalysisResult> {
-  const kind = file.type.startsWith("video") ? "video" : "image";
+  const kind = getMediaKind(file);
   const objectUrl = URL.createObjectURL(file);
 
   try {
@@ -95,6 +95,15 @@ export async function analyzeFile(file: File): Promise<AnalysisResult> {
     return resultFromSignals(kind, file.name, file.type, file.size, stats);
   } finally {
     URL.revokeObjectURL(objectUrl);
+  }
+}
+
+export function isSupportedMediaFile(file: File) {
+  try {
+    getMediaKind(file);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -295,6 +304,21 @@ function clampScore(score: number) {
   return Math.max(2, Math.min(98, Math.round(score)));
 }
 
+function getMediaKind(file: File): Exclude<MediaKind, "link"> {
+  const type = file.type.toLowerCase();
+  const name = file.name.toLowerCase();
+
+  if (type.startsWith("video") || /\.(mp4|mov|m4v|webm|quicktime)$/i.test(name)) {
+    return "video";
+  }
+
+  if (type.startsWith("image") || /\.(png|jpe?g|webp|gif|heic|heif)$/i.test(name)) {
+    return "image";
+  }
+
+  throw new Error("Upload an image or video file.");
+}
+
 function normalizeUrl(rawUrl: string) {
   const trimmed = rawUrl.trim();
   if (!trimmed) return "";
@@ -327,39 +351,92 @@ function sampleImage(src: string): Promise<PixelStats> {
 function sampleVideoFrame(src: string): Promise<PixelStats> {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video");
+    let settled = false;
+    let timeoutId = 0;
     video.muted = true;
     video.playsInline = true;
-    video.preload = "metadata";
+    video.preload = "auto";
+
+    const settle = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      callback();
+    };
 
     const cleanup = () => {
+      video.onloadedmetadata = null;
+      video.onloadeddata = null;
+      video.oncanplay = null;
+      video.onseeked = null;
+      video.onerror = null;
       video.removeAttribute("src");
       video.load();
     };
 
-    video.onloadedmetadata = () => {
-      const target = Number.isFinite(video.duration)
-        ? Math.min(Math.max(video.duration * 0.25, 0.1), 2.5)
-        : 0.1;
-      video.currentTime = target;
+    const captureFrame = () => {
+      settle(() => {
+        try {
+          const stats = statsFromDrawable(video, video.videoWidth, video.videoHeight);
+          cleanup();
+          resolve(stats);
+        } catch (error) {
+          cleanup();
+          reject(error);
+        }
+      });
     };
 
-    video.onseeked = () => {
+    video.onloadedmetadata = () => {
+      if (!video.videoWidth || !video.videoHeight) return;
+      const target = Number.isFinite(video.duration)
+        ? Math.min(Math.max(video.duration * 0.2, 0.05), 2.5)
+        : 0.1;
+
+      if (Math.abs(video.currentTime - target) < 0.02) {
+        captureFrame();
+        return;
+      }
+
       try {
-        const stats = statsFromDrawable(video, video.videoWidth, video.videoHeight);
-        cleanup();
-        resolve(stats);
-      } catch (error) {
-        cleanup();
-        reject(error);
+        video.currentTime = target;
+      } catch {
+        captureFrame();
       }
     };
 
-    video.onerror = () => {
-      cleanup();
-      reject(new Error("Could not read the video frame."));
+    video.onloadeddata = () => {
+      if (!Number.isFinite(video.duration) || video.duration <= 0.12) {
+        captureFrame();
+      }
     };
 
+    video.oncanplay = () => {
+      if (!Number.isFinite(video.duration) || video.duration <= 0.12) {
+        captureFrame();
+      }
+    };
+
+    video.onseeked = captureFrame;
+
+    video.onerror = () => {
+      settle(() => {
+        cleanup();
+        reject(new Error("Could not read the video frame. Try saving the social video as MP4 and uploading that file."));
+      });
+    };
+
+    timeoutId = window.setTimeout(() => {
+      settle(() => {
+        cleanup();
+        reject(new Error("The video took too long to sample. Try a shorter MP4 export of the social video."));
+      });
+    }, 10000);
+
+    video.crossOrigin = "anonymous";
+
     video.src = src;
+    video.load();
   });
 }
 

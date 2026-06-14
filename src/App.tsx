@@ -19,6 +19,7 @@ import {
   analyzeFile,
   analyzeLink,
   detectSocialPlatform,
+  isSupportedMediaFile,
   type AnalysisResult,
   type SocialPlatform,
 } from "./analyzer";
@@ -86,15 +87,17 @@ export function App() {
     if (!file) return;
     setError("");
 
-    if (!file.type.startsWith("image") && !file.type.startsWith("video")) {
-      setError("Upload an image or video file.");
+    if (!isSupportedMediaFile(file)) {
+      setError("Upload an image or video file. MP4, MOV, WebM, PNG, JPEG, WebP, and GIF are supported.");
       return;
     }
 
     if (preview) URL.revokeObjectURL(preview.url);
+    const fileType = file.type.toLowerCase();
+    const isVideo = fileType.startsWith("video") || /\.(mp4|mov|m4v|webm)$/i.test(file.name);
     const nextPreview = {
       url: URL.createObjectURL(file),
-      type: file.type.startsWith("video") ? "video" as const : "image" as const,
+      type: isVideo ? "video" as const : "image" as const,
       name: file.name,
     };
     setSelectedFile(file);
@@ -115,6 +118,7 @@ export function App() {
     setIsAnalyzing(true);
 
     try {
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
       setResult(await analyzeFile(selectedFile));
     } catch (analysisError) {
       setError(
