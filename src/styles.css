@@ -202,6 +202,56 @@ h2 {
   color: var(--teal);
 }
 
+.social-workflow {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid rgba(0, 106, 106, 0.18);
+  border-radius: 8px;
+  background: #eef4f2;
+}
+
+.social-workflow-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.social-workflow-heading svg {
+  flex: 0 0 auto;
+  color: var(--teal);
+  margin-top: 2px;
+}
+
+.social-workflow-heading strong {
+  display: block;
+  color: var(--ink);
+  font-size: 1rem;
+}
+
+.social-workflow-heading p {
+  margin: 4px 0 0;
+  color: #44534e;
+  line-height: 1.45;
+}
+
+.platform-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.platform-row span {
+  padding: 5px 8px;
+  border: 1px solid rgba(0, 106, 106, 0.16);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #31524c;
+  font-size: 0.8rem;
+  font-weight: 730;
+}
+
 .link-form {
   min-height: 220px;
   padding: 20px;
@@ -288,23 +338,56 @@ h2 {
   color: #69736d;
 }
 
-.social-notice {
+.social-notice,
+.social-link-hint {
   display: flex;
   align-items: flex-start;
   gap: 9px;
   margin: 12px 0 0;
   padding: 11px 12px;
-  border: 1px solid rgba(188, 108, 37, 0.24);
   border-radius: 8px;
-  background: rgba(188, 108, 37, 0.08);
-  color: #5a442c;
   font-weight: 650;
   line-height: 1.45;
 }
 
-.social-notice svg {
+.social-notice {
+  border: 1px solid rgba(188, 108, 37, 0.24);
+  background: rgba(188, 108, 37, 0.08);
+  color: #5a442c;
+}
+
+.social-link-hint {
+  border: 1px solid rgba(0, 106, 106, 0.16);
+  background: rgba(0, 106, 106, 0.06);
+  color: #34554e;
+}
+
+.social-notice svg,
+.social-link-hint svg {
   flex: 0 0 auto;
   margin-top: 2px;
+}
+
+.social-notice strong {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--ink);
+}
+
+.social-notice p,
+.social-link-hint p {
+  margin: 0;
+}
+
+.social-notice button {
+  margin-top: 10px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(188, 108, 37, 0.34);
+  border-radius: 6px;
+  background: #ffffff;
+  color: #4c3521;
+  font-weight: 760;
 }
 
 .alert {

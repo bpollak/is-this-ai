@@ -10,11 +10,18 @@ import {
   RotateCcw,
   ScanSearch,
   ShieldCheck,
+  Smartphone,
   Upload,
   Video,
   X,
 } from "lucide-react";
-import { analyzeFile, analyzeLink, type AnalysisResult } from "./analyzer";
+import {
+  analyzeFile,
+  analyzeLink,
+  detectSocialPlatform,
+  type AnalysisResult,
+  type SocialPlatform,
+} from "./analyzer";
 
 type Mode = "upload" | "link";
 type Preview = {
@@ -35,6 +42,7 @@ export function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const socialPlatform = useMemo(() => detectSocialPlatform(url.toLowerCase()), [url]);
 
   useEffect(() => {
     return () => {
@@ -57,7 +65,7 @@ export function App() {
     return "Choose an image or video, then click Analyze media.";
   }, [analysisSource, isAnalyzing, selectedFile]);
 
-  const linkNotice = useMemo(() => getSocialLinkNotice(url), [url]);
+  const linkNotice = useMemo(() => getSocialLinkNotice(socialPlatform), [socialPlatform]);
 
   function handleFile(file: File | undefined) {
     if (!file) return;
@@ -140,6 +148,11 @@ export function App() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
+  function switchToUpload() {
+    setMode("upload");
+    setError("");
+  }
+
   return (
     <main className="app-shell">
       <section className="workspace" aria-label="AI media authenticity checker">
@@ -180,26 +193,29 @@ export function App() {
             </div>
 
             {mode === "upload" ? (
-              <label
-                className="dropzone"
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={handleDrop}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept={acceptedMedia}
-                  onChange={(event) => handleFile(event.target.files?.[0])}
-                />
-                <span className="drop-icon">
-                  <ImageUp size={30} aria-hidden="true" />
-                </span>
-                <strong>Drop media or choose a file</strong>
-                <span>Images and short videos are sampled in your browser.</span>
-              </label>
+              <>
+                <SocialWorkflowPanel />
+                <label
+                  className="dropzone"
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={handleDrop}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept={acceptedMedia}
+                    onChange={(event) => handleFile(event.target.files?.[0])}
+                  />
+                  <span className="drop-icon">
+                    <ImageUp size={30} aria-hidden="true" />
+                  </span>
+                  <strong>Upload the saved social video file</strong>
+                  <span>Choose the actual MP4, MOV, WebM, or image file, then click Analyze media.</span>
+                </label>
+              </>
             ) : (
               <form className="link-form" onSubmit={handleUrlSubmit}>
-                <label htmlFor="media-url">Video or image link</label>
+                <label htmlFor="media-url">Social, video, or image link</label>
                 <div className="url-row">
                   <input
                     id="media-url"
@@ -214,11 +230,18 @@ export function App() {
                   </button>
                 </div>
                 {linkNotice ? (
-                  <p className="social-notice" aria-live="polite">
+                  <div className="social-notice" aria-live="polite">
                     <AlertTriangle size={17} aria-hidden="true" />
-                    {linkNotice}
-                  </p>
+                    <div>
+                      <strong>{socialPlatform} link detected</strong>
+                      <p>{linkNotice}</p>
+                      <button type="button" onClick={switchToUpload}>
+                        Upload saved video instead
+                      </button>
+                    </div>
+                  </div>
                 ) : null}
+                {!linkNotice ? <SocialLinkHint /> : null}
               </form>
             )}
 
@@ -401,24 +424,53 @@ const placeholderSignals = [
   },
 ];
 
-function getSocialLinkNotice(rawUrl: string) {
-  const url = rawUrl.trim().toLowerCase();
-  if (!url) return "";
-
-  if (url.includes("instagram.com")) {
-    return "Instagram links are URL-only here. To inspect frames, download or save the Reel video and upload the file.";
-  }
-
-  if (
-    url.includes("tiktok.com") ||
-    url.includes("youtube.com") ||
-    url.includes("youtu.be") ||
-    url.includes("vimeo.com") ||
-    url.includes("x.com") ||
-    url.includes("twitter.com")
-  ) {
-    return "Social video links are URL-only here. Upload the actual media file for frame-level analysis.";
-  }
-
-  return "";
+function SocialWorkflowPanel() {
+  return (
+    <aside className="social-workflow" aria-label="Social video workflow">
+      <div className="social-workflow-heading">
+        <Smartphone size={19} aria-hidden="true" />
+        <div>
+          <strong>Social video workflow</strong>
+          <p>For Reels, Shorts, TikToks, Vimeo, X, Facebook, or Threads videos, upload the saved media file for actual frame analysis.</p>
+        </div>
+      </div>
+      <div className="platform-row" aria-label="Recognized social platforms">
+        {supportedSocialPlatforms.map((platform) => (
+          <span key={platform}>{platform}</span>
+        ))}
+      </div>
+    </aside>
+  );
 }
+
+function SocialLinkHint() {
+  return (
+    <div className="social-link-hint">
+      <Smartphone size={18} aria-hidden="true" />
+      <p>
+        Social links can be logged as source context, but this static version cannot download the post video.
+        Upload the saved file when you need visual analysis.
+      </p>
+    </div>
+  );
+}
+
+function getSocialLinkNotice(platform: SocialPlatform | null) {
+  if (!platform) return "";
+
+  if (platform === "Instagram") {
+    return "This app can score the Instagram URL only. It cannot inspect Reel frames from the link; save the Reel video and upload the file for media analysis.";
+  }
+
+  return `This app can score the ${platform} URL only. It cannot inspect video frames from the link; upload the saved media file for frame-level analysis.`;
+}
+
+const supportedSocialPlatforms: SocialPlatform[] = [
+  "Instagram",
+  "TikTok",
+  "YouTube",
+  "Vimeo",
+  "X/Twitter",
+  "Facebook",
+  "Threads",
+];

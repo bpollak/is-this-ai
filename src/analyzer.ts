@@ -31,7 +31,14 @@ type PixelStats = {
   compressionProxy: number;
 };
 
-type SocialPlatform = "Instagram" | "TikTok" | "YouTube" | "Vimeo" | "X/Twitter";
+export type SocialPlatform =
+  | "Instagram"
+  | "TikTok"
+  | "YouTube"
+  | "Vimeo"
+  | "X/Twitter"
+  | "Facebook"
+  | "Threads";
 
 const aiDomains = [
   "runwayml.com",
@@ -295,12 +302,14 @@ function normalizeUrl(rawUrl: string) {
   return `https://${trimmed}`;
 }
 
-function detectSocialPlatform(url: string): SocialPlatform | null {
+export function detectSocialPlatform(url: string): SocialPlatform | null {
   if (url.includes("instagram.com")) return "Instagram";
   if (url.includes("tiktok.com")) return "TikTok";
   if (url.includes("youtube.com") || url.includes("youtu.be")) return "YouTube";
   if (url.includes("vimeo.com")) return "Vimeo";
   if (url.includes("x.com") || url.includes("twitter.com")) return "X/Twitter";
+  if (url.includes("facebook.com") || url.includes("fb.watch")) return "Facebook";
+  if (url.includes("threads.net")) return "Threads";
   return null;
 }
 

@@ -6,7 +6,7 @@ The browser prototype separates deterministic verification from heuristic scorin
 
 - Watermark/provenance checks are shown as their own status.
 - Uploaded media is previewed first, then sampled locally after the user clicks **Analyze media**.
-- Links are scored from available source and naming clues. Social video links, including Instagram Reels, are URL-only unless the actual media file is uploaded.
+- Links are scored from available source and naming clues. Social video links, including Instagram Reels, TikToks, YouTube Shorts, Vimeo, X/Twitter, Facebook, and Threads videos, are URL-only unless the actual media file is uploaded.
 - The result explains why it is not a 100% determination unless a supported watermark or provenance signal is verified.
 
 ## Development
