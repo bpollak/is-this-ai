@@ -31,6 +31,21 @@ type Preview = {
 };
 
 const acceptedMedia = "image/png,image/jpeg,image/webp,image/gif,video/mp4,video/quicktime,video/webm";
+const siteBaseUrl = "https://brettcpollak.com";
+
+const primaryNavLinks = [
+  { href: "/about", label: "About" },
+  { href: "/tritongpt", label: "TritonAI" },
+  { href: "/speaking", label: "Speaking" },
+  { href: "/media", label: "Media" },
+  { href: "/products", label: "Products", active: true },
+];
+
+const secondaryNavLinks = [
+  { href: "/ai-digest", label: "AI Digest" },
+  { href: "/ai-agent-architecture", label: "Agent Architecture" },
+  { href: "/contact", label: "Contact" },
+];
 
 export function App() {
   const [mode, setMode] = useState<Mode>("upload");
@@ -154,16 +169,60 @@ export function App() {
   }
 
   return (
-    <main className="app-shell">
-      <section className="workspace" aria-label="AI media authenticity checker">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">Media provenance triage</p>
-            <h1>Is This AI?</h1>
+    <>
+      <header className="site-header">
+        <nav className="site-nav" aria-label="Brett Pollak website navigation">
+          <a className="skip-link" href="#main-content">
+            Skip to main content
+          </a>
+          <a className="brand-link" href={siteBaseUrl}>
+            <span className="brand-mark" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+            <span>Brett Pollak</span>
+          </a>
+          <div className="nav-links" aria-label="Primary links">
+            {primaryNavLinks.map((link) => (
+              <a
+                className={link.active ? "active" : ""}
+                href={`${siteBaseUrl}${link.href}`}
+                key={link.href}
+              >
+                {link.label}
+              </a>
+            ))}
           </div>
-          <div className="status-pill">
-            <ShieldCheck size={18} aria-hidden="true" />
-            SynthID / C2PA ready model
+          <div className="nav-links secondary" aria-label="AI and contact links">
+            {secondaryNavLinks.map((link) => (
+              <a href={`${siteBaseUrl}${link.href}`} key={link.href}>
+                {link.label}
+              </a>
+            ))}
+          </div>
+        </nav>
+      </header>
+
+      <main className="app-shell" id="main-content">
+        <section className="workspace" aria-label="AI media authenticity checker">
+          <header className="product-hero">
+          <div>
+            <p className="eyebrow">Product laboratory</p>
+            <h1>Is This AI?</h1>
+            <p className="hero-copy">
+              A media provenance triage tool for social videos, uploaded files, and public links.
+              Upload the actual file for visual analysis; paste a social link for URL-only context.
+            </p>
+          </div>
+          <div className="hero-actions">
+            <div className="status-pill">
+              <ShieldCheck size={18} aria-hidden="true" />
+              SynthID / C2PA ready model
+            </div>
+            <a className="back-link" href={`${siteBaseUrl}/products`}>
+              Back to Built Work
+            </a>
           </div>
         </header>
 
@@ -380,8 +439,9 @@ export function App() {
             </div>
           </section>
         </div>
-      </section>
-    </main>
+        </section>
+      </main>
+    </>
   );
 }
 
